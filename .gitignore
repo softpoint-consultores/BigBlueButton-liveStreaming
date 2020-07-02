@@ -1,5 +1,13 @@
+
 .env
 .ds_store
 *.yml
 *.code-workspace
 *.iml
+__pycache__/
+chromedriver
+config.py
+*.egg-info/
+*.egg
+videodata/*
+!videodata/empty

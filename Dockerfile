@@ -58,6 +58,6 @@ COPY chat.py ./
 COPY startStream.sh ./
 COPY docker-entrypoint.sh ./
 
-ENTRYPOINT ["sh","docker-entrypoint.sh"]
+ENTRYPOINT ["sh", "docker-entrypoint.sh"]
 
 CMD ["sh","startStream.sh" ]
