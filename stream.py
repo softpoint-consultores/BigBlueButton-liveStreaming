@@ -116,6 +116,8 @@ def bbb_browser():
     #browser.execute_script("document.querySelector('[aria-label=\"Actions bar\"]').style.display='none';")
     #browser.execute_script("document.getElementById('container').setAttribute('style','margin-bottom:30px');")
 
+    cancel_webcam()
+
 
 def create_meeting():
     create_params = {}
@@ -152,6 +154,22 @@ def stream_intro(frames=30):
     p = subprocess.call(ffmpeg_args)
 
 
+def cancel_webcam():
+    xpath = '/html/body/div[2]/div/div/div[1]/div/div[3]/div/button[1]'
+    element = EC.presence_of_element_located((By.XPATH, xpath))
+    try:
+        WebDriverWait(browser, connect_timeout).until(element)
+        browser.find_element_by_xpath(xpath).click()
+    finally:
+        pass
+
+
+def check_number_users():
+    number_users = browser.find_element_by_class_name('userCountText--IpKDk').text
+    logging.info('Number of users: {}'.format(number_users))
+    return int(number_users)
+
+
 def stream(frames=30):
     audio_options = '-f alsa -i pulse -ac 2 -c:a aac -b:a 160k -ar 44100'
     #video_options = ' -c:v libvpx-vp9 -b:v 2000k -crf 33 -quality realtime -speed 5'
@@ -169,7 +187,20 @@ def stream(frames=30):
 
     ffmpeg_args = shlex.split(ffmpeg_stream)
     logging.info("streaming meeting...")
-    p = subprocess.call(ffmpeg_args)
+
+    # Check unitl there is users on the conference
+    while check_number_users() <= 1:
+        sleep(10)
+
+    p = subprocess.Popen(ffmpeg_args)
+
+    # Check unitl there is no more users on the conference
+    while check_number_users() > 1:
+        sleep(10)
+
+    logging.info('Stop streaming. Not enough users')
+
+    return p
 
 
 def download():
@@ -179,13 +210,24 @@ def download():
     #codec = 'libvpx-vp9'
     video_options = '-c:v {} -crf 0 -preset ultrafast'.format(codec)
 
-    ffmpeg_stream = 'ffmpeg -thread_queue_size 1024 -f x11grab -draw_mouse 0 -s %dx%d  -i :%d -thread_queue_size 1024 %s %s %s' % ( *resolution, args.record, audio_options, video_options, downloadFile)
-
-    print(ffmpeg_stream)
+    ffmpeg_stream = 'ffmpeg -y -thread_queue_size 1024 -f x11grab -draw_mouse 0 -s %dx%d  -i :%d -thread_queue_size 1024 %s %s %s' % ( *resolution, args.record, audio_options, video_options, downloadFile)
 
     ffmpeg_args = shlex.split(ffmpeg_stream)
     logging.info("saving meeting as %s" % downloadFile)
-    return subprocess.Popen(ffmpeg_args)
+
+    # Check unitl there is users on the conference
+    while check_number_users() <= 1:
+        sleep(10)
+
+    p = subprocess.Popen(ffmpeg_args)
+
+    # Check unitl there is no more users on the conference
+    while check_number_users() > 1:
+        sleep(10)
+
+    logging.info('Stop recording. Not enough users.')
+
+    return p
 
 
 if args.startMeeting is False:
@@ -205,8 +247,12 @@ if args.stream or args.download:
 if args.download:
     downloadProcess = download()
 if args.stream:
-    stream()
+    streamProcess = stream()
+    streamProcess.terminate()
+    streamProcess.wait()
 if downloadProcess:
-    downloadProcess.communicate(input=None)
+    #downloadProcess.communicate(input=None)
+    downloadProcess.terminate()
+    downloadProcess.wait()
 if browser:
     browser.quit()
